@@ -49,7 +49,7 @@ def get_model(n_steps, n_features, train_x, train_y):
 def prepare_reconciliation(data, split_index, n_steps):
     test_data = dict()
     for index in range(len(data) - split_index, len(data)):
-        key = f'{index}&{round_val(data[index])}'
+        key = f'{index}&{data[index]}'
         value = data[index - n_steps: index].astype('float32')
         test_data[key] = array(value)
     return test_data
