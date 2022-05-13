@@ -55,13 +55,12 @@ def prepare_reconciliation(data, split_index, n_steps):
 
 
 def predict_and_test(model, data, split_index, n_steps, n_features):
-    correct, predict = list(), list()
+    predict = list()
     for key, fit_data in prepare_reconciliation(data, split_index, n_steps):
-        correct.append(key)
         x_input = fit_data.reshape((1, n_steps, n_features))
         yhat = model.predict(x_input, verbose=0)[0][0]
         predict.append(round_val(yhat))
-    return correct, predict
+    return predict
 
 
 def prepare_future_data(data, n_steps):
@@ -119,7 +118,7 @@ def process(df, n_steps, n_features, reconciliation_index):
         X, y = split_sequence(train, n_steps)
         X = X.reshape((X.shape[0], X.shape[1], n_features))
         model = get_model(n_steps, n_features, X, y)
-        correct, predict = predict_and_test(model, train, reconciliation_index, n_steps, n_features)
+        predict = predict_and_test(model, train, reconciliation_index, n_steps, n_features)
         future = predict_future(model, train, reconciliation_index, n_steps, n_features)
         result[title] = [*predict, *future]
         print(f"{title} predicted")
