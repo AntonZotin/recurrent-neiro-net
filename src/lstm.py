@@ -102,17 +102,16 @@ def add_cols(df, new_data, new_cols_vol):
     return df
 
 
+def read_from_xls():
+    return pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели").T
+
+
 def write_to_csv(df):
     filepath = Path('../data/out.csv')
     df.T.to_csv(filepath, encoding='windows-1251', index=False, sep=";")
 
 
-def run():
-    xl = pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели")
-    df = xl.T
-    reconciliation_index = 4
-    n_steps = 9
-    n_features = 1
+def process(df, n_steps, n_features, reconciliation_index):
     result = dict()
     for col_index in df.columns:
         col = df[col_index]
@@ -124,6 +123,15 @@ def run():
         future = predict_future(model, train, reconciliation_index, n_steps, n_features)
         result[title] = [*predict, *future]
         print(f"{title} predicted")
+    return result
+
+
+def run():
+    reconciliation_index = 4
+    n_steps = 9
+    n_features = 1
+    df = read_from_xls()
+    result = process(df, n_steps, n_features, reconciliation_index)
     df = add_cols(df, result, reconciliation_index)
     write_to_csv(df)
 
