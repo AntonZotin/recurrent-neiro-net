@@ -47,19 +47,15 @@ def get_model(n_steps, n_features, train_x, train_y):
 
 
 def prepare_reconciliation(data, split_index, n_steps):
-    test_data = dict()
     for index in range(len(data) - split_index, len(data)):
-        key = f'{index}&{data[index]}'
         value = data[index - n_steps: index].astype('float32')
-        test_data[key] = array(value)
-    return test_data
+        yield data[index], array(value)
 
 
 def predict_and_test(model, data, split_index, n_steps, n_features):
-    correct = []
-    predict = []
-    for key, fit_data in prepare_reconciliation(data, split_index, n_steps).items():
-        correct.append(round_val(key.split('&')[1]))
+    correct, predict = list(), list()
+    for key, fit_data in prepare_reconciliation(data, split_index, n_steps):
+        correct.append(key)
         x_input = fit_data.reshape((1, n_steps, n_features))
         yhat = model.predict(x_input, verbose=0)[0][0]
         predict.append(round_val(yhat))
