@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -77,12 +79,41 @@ def predict_future(model, data, split_index, n_steps, n_features):
     return result
 
 
+def add_empty_cols(df, cols_volume):
+    df = df.T
+    last_year = df.columns.values[-1]
+    for i in range(1, cols_volume + 1):
+        df[str(last_year + i)] = pd.Series(dtype=float)
+    return df.T
+
+
+def get_new_col_index(current):
+    return current * 2 + 1
+
+
+def add_cols(df, new_data, new_cols_vol):
+    empty_cells = df.shape[0] - new_cols_vol - 1
+    df = add_empty_cols(df, new_cols_vol)
+    for col_index in df.columns:
+        title = df[col_index].values[0]
+        col_data = [f"{title} прогноз", *[""] * empty_cells, *[str(round_val(v)).replace('.', ',') for v in new_data[title]]]
+        new_index = get_new_col_index(col_index)
+        df.insert(new_index, f"{col_index}*", col_data)
+    return df
+
+
+def write_to_csv(df):
+    filepath = Path('../data/out.csv')
+    df.T.to_csv(filepath, encoding='windows-1251', index=False, sep=";")
+
+
 def run():
-    xl = pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx')
-    df = xl.parse("Прогнозируемые показатели").T
+    xl = pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели")
+    df = xl.T
     reconciliation_index = 4
     n_steps = 9
     n_features = 1
+    result = dict()
     for col_index in df.columns:
         col = df[col_index]
         title, train = split_dataset(col.values)
@@ -91,7 +122,10 @@ def run():
         model = get_model(n_steps, n_features, X, y)
         correct, predict = predict_and_test(model, train, reconciliation_index, n_steps, n_features)
         future = predict_future(model, train, reconciliation_index, n_steps, n_features)
-        print(f"{title}: Correct: {correct}, Predict: {predict}, Future: {future}")
+        result[title] = [*predict, *future]
+        print(f"{title} predicted")
+    df = add_cols(df, result, reconciliation_index)
+    write_to_csv(df)
 
 
 if __name__ == '__main__':
