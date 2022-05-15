@@ -76,12 +76,15 @@ def predict_future(model, data, split_index, n_steps, n_features):
     return result
 
 
+def read_from_xls():
+    return pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели").T
+
+
 def run():
     try:
-        xl = pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx')
-        df = xl.parse("Прогнозируемые показатели").T
         reconciliation_index = 4
         n_steps = 9
+        df = read_from_xls()
         title, train = split_dataset(df.values)
         X, y = split_sequences(train, n_steps)
         n_features = X.shape[2]
