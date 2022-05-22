@@ -1,37 +1,18 @@
-from pathlib import Path
-
-import pandas as pd
 import numpy as np
-
-from numpy import array
-from keras.models import Sequential
-from keras.layers import LSTM
 from keras.layers import Dense
+from keras.layers import LSTM
+from keras.models import Sequential
+from numpy import array
+
+from src.utils import round_val, split_dataset, write_to_csv, add_cols, read_from_xls, prepare_future_data, \
+    prepare_reconciliation_data
 
 
-def round_val(val):
-    return round(float(val), 4)
-
-
-def replace_empty(values):
-    result = list()
-    for row in range(values.shape[0]):
-        if np.isnan(values[row]):
-            result = list()
-        else:
-            result.append(values[row])
-    return array(result)
-
-
-def split_dataset(data):
-    return data[0], replace_empty(data[1:]).astype('float32')
-
-
-def split_sequence(sequence, n_steps):
+def split_sequence(sequence, n_steps, empty_column_index):
     X, y = list(), list()
     for i in range(len(sequence)):
         end_ix = i + n_steps
-        if end_ix > len(sequence) - 1:
+        if end_ix > len(sequence) - 1 or end_ix >= empty_column_index:
             break
         seq_x, seq_y = sequence[i:end_ix], sequence[end_ix]
         X.append(seq_x)
@@ -39,101 +20,60 @@ def split_sequence(sequence, n_steps):
     return array(X), array(y)
 
 
-def get_model(n_steps, n_features, train_x, train_y):
+def get_model(n_steps, n_input, train_x, train_y):
     model = Sequential()
-    model.add(LSTM(150, activation='relu', input_shape=(n_steps, n_features)))
+    model.add(LSTM(150, activation='relu', input_shape=(n_steps, n_input)))
     model.add(Dense(1))
     model.compile(optimizer='adam', loss='mse')
     model.fit(train_x, train_y, epochs=3000, verbose=0)
     return model
 
 
-def prepare_reconciliation(data, split_index, n_steps):
-    for index in range(len(data) - split_index, len(data)):
-        value = data[index - n_steps: index].astype('float32')
-        yield data[index], array(value)
-
-
-def predict_and_test(model, data, split_index, n_steps, n_features):
+def predict_reconciliation(model, data, split_index, n_steps, n_input, empty_column_index):
     predict = list()
-    for key, fit_data in prepare_reconciliation(data, split_index, n_steps):
-        x_input = fit_data.reshape((1, n_steps, n_features))
+    for fit_data in prepare_reconciliation_data(data, split_index, n_steps, empty_column_index):
+        x_input = fit_data.reshape((1, n_steps, n_input))
         yhat = model.predict(x_input, verbose=0)[0][0]
         predict.append(round_val(yhat))
     return predict
 
 
-def prepare_future_data(data, n_steps):
-    return array(data[len(data) - n_steps:].astype('float32'))
-
-
-def predict_future(model, data, split_index, n_steps, n_features):
+def predict_future(model, data, predict_steps, n_steps, n_input, empty_column_index):
     result = list()
-    for _ in range(split_index):
-        fit_data = prepare_future_data(data, n_steps)
-        x_input = fit_data.reshape((1, n_steps, n_features))
+    new_data = data[:empty_column_index]
+    for _ in range(predict_steps):
+        fit_data = prepare_future_data(new_data, n_steps)
+        x_input = fit_data.reshape((1, n_steps, n_input))
         yhat = model.predict(x_input, verbose=0)[0][0]
         result.append(round_val(yhat))
-        data = np.concatenate([data, array([yhat])])
+        new_data = np.concatenate([new_data, array([yhat])])
+        empty_column_index += 1
     return result
 
 
-def add_empty_cols(df, cols_volume):
-    df = df.T
-    last_year = df.columns.values[-1]
-    for i in range(1, cols_volume + 1):
-        df[str(last_year + i)] = pd.Series(dtype=float)
-    return df.T
-
-
-def get_new_col_index(current):
-    return current * 2 + 1
-
-
-def add_cols(df, new_data, new_cols_vol):
-    empty_cells = df.shape[0] - new_cols_vol - 1
-    df = add_empty_cols(df, new_cols_vol)
-    for col_index in df.columns:
-        title = df[col_index].values[0]
-        col_data = [f"{title} прогноз", *[""] * empty_cells, *[str(round_val(v)).replace('.', ',') for v in new_data[title]]]
-        new_index = get_new_col_index(col_index)
-        df.insert(new_index, f"{col_index}*", col_data)
-    return df
-
-
-def read_from_xls():
-    return pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели")[:5].T
-
-
-def write_to_csv(df):
-    filepath = Path('../data/out.csv')
-    df.T.to_csv(filepath, encoding='windows-1251', index=False, sep=";")
-
-
-def process(df, n_steps, n_features, reconciliation_index):
+def process_lstm(df, n_steps, index_last_predicted_row, reconciliation_number, predict_steps):
+    # number of rows to input
+    n_input = 1
+    title, train, empty_column_index = split_dataset(df.values)
     result = dict()
-    for col_index in df.columns:
-        col = df[col_index]
-        title, train = split_dataset(col.values)
-        X, y = split_sequence(train, n_steps)
-        X = X.reshape((X.shape[0], X.shape[1], n_features))
-        model = get_model(n_steps, n_features, X, y)
-        predict = predict_and_test(model, train, reconciliation_index, n_steps, n_features)
-        future = predict_future(model, train, reconciliation_index, n_steps, n_features)
-        result[title] = [*predict, *future]
-        print(f"{title} predicted")
-    return result
+    for row_index in range(index_last_predicted_row):
+        row = train[:, row_index]
+        X, y = split_sequence(row, n_steps, empty_column_index)
+        X = X.reshape((X.shape[0], X.shape[1], n_input))
+        model = get_model(n_steps, n_input, X, y)
+        predict = predict_reconciliation(model, row, reconciliation_number, n_steps, n_input, empty_column_index)
+        future = predict_future(model, row, predict_steps, n_steps, n_input, empty_column_index)
+        result[title[row_index]] = [*predict, *future]
+        print(f"{title[row_index]} predicted")
+
+    need_add_empty_cols_to_df = empty_column_index + predict_steps > df.shape[0] - 1
+    return add_cols(df, result, predict_steps, reconciliation_number, empty_column_index, index_last_predicted_row,
+                    need_add_empty_cols_to_df)
 
 
-def run():
-    reconciliation_index = 4
+def run_lstm(reconciliation_number, predict_steps):
+    # number of values for input
     n_steps = 9
-    n_features = 1
-    df = read_from_xls()
-    result = process(df, n_steps, n_features, reconciliation_index)
-    df = add_cols(df, result, reconciliation_index)
-    write_to_csv(df)
-
-
-if __name__ == '__main__':
-    run()
+    for list_name, df, index_last_predicted_row in read_from_xls():
+        result = process_lstm(df, n_steps, index_last_predicted_row, reconciliation_number, predict_steps)
+        write_to_csv(result, list_name, "single")
