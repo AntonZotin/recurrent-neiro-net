@@ -102,7 +102,7 @@ def add_cols(df, new_data, new_cols_vol):
 
 
 def read_from_xls():
-    return pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели").T
+    return pd.ExcelFile('../data/Статистические_данные_показателей_СЭР.xlsx').parse("Прогнозируемые показатели")[:5].T
 
 
 def write_to_csv(df):
