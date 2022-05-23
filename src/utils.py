@@ -37,7 +37,7 @@ def read_from_xls():
         "Платные услуги_без_сцен": {"header_row": 7, "index_last_predicted_row": 5},
         "Платные услуги_со_сцен": {"header_row": 10, "index_last_predicted_row": 5}
     }
-    dataframe = pd.ExcelFile('../data/Ограниченная_выборка_для_построения_моделей_средствами_Python.xlsx')
+    dataframe = pd.ExcelFile('./data/data.xlsx')
     for list_name, value in lists.items():
         yield list_name, dataframe.parse(list_name, header=value["header_row"]).T, value["index_last_predicted_row"]
 
@@ -50,7 +50,7 @@ def write_to_csv(df, filename, system):
     :param system: name of using system:
     """
     print(f"Writing to {filename}")
-    filepath = Path(f'../data/{filename}-{system}.csv')
+    filepath = Path(f'./data/{filename}-{system}.csv')
     df.T.to_csv(filepath, encoding='windows-1251', index=False, sep=";")
 
 
