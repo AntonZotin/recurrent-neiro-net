@@ -69,7 +69,7 @@ def predict_future(model, data, predict_steps, n_steps, n_input, empty_column_in
 
 
 def process_lstm(df, n_steps, index_last_predicted_row, reconciliation_number, predict_steps):
-    # number of rows to input
+    # number of rows for input
     n_input = 1
 
     title, train, empty_column_index = split_dataframe(df.values)

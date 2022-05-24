@@ -80,7 +80,7 @@ def process_multilstm(df, n_steps, index_last_predicted_row, reconciliation_numb
     title, train, empty_column_index = split_dataframe(df.values)
     X, y = split_sequences(train, n_steps, index_last_predicted_row, empty_column_index)
 
-    # number of rows to input
+    # number of rows for input
     n_input = X.shape[2]
 
     model = get_model(n_steps, n_input, index_last_predicted_row, X, y)
